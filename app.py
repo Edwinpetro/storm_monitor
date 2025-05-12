@@ -145,7 +145,7 @@ def send_map_via_email_oauth(fig, recipients, subject, body_html, cc=None, bcc=N
         sender_email = os.getenv('SENDER_EMAIL_DISPLAY', 'Lockton Storm Monitor <analistadatoslockton@gmail.com>')
         
         # Create message container
-        message = MIMEMultipart('related')
+        message = MIMEMultipart('mixed')  # Changed from 'related' to 'mixed' for better compatibility
         message['to'] = ', '.join(recipients) if isinstance(recipients, list) else recipients
         message['subject'] = subject
         message['from'] = sender_email
@@ -156,18 +156,17 @@ def send_map_via_email_oauth(fig, recipients, subject, body_html, cc=None, bcc=N
             message['bcc'] = ', '.join(bcc) if isinstance(bcc, list) else bcc
         
         # Add HTML body
-        msgAlternative = MIMEMultipart('alternative')
-        message.attach(msgAlternative)
-        msgAlternative.attach(MIMEText(body_html, 'html'))
+        msg_html = MIMEText(body_html, 'html')
+        message.attach(msg_html)
         
         # Save figure to HTML file temporarily
         temp_html_path = "temp_map.html"
         fig.write_html(temp_html_path)
         
-        # Attach HTML file
+        # Attach HTML file with descriptive filename
         with open(temp_html_path, 'rb') as f:
             attachment = MIMEApplication(f.read(), _subtype='html')
-            attachment['Content-Disposition'] = f'attachment; filename="storm_map.html"'
+            attachment['Content-Disposition'] = 'attachment; filename="storm_map.html"'
             message.attach(attachment)
         
         # Remove temporary file
@@ -185,7 +184,7 @@ def send_map_via_email_oauth(fig, recipients, subject, body_html, cc=None, bcc=N
     except HttpError as error:
         print(f"An error occurred: {error}")
         return None
-
+    
 def load_html_template(template_name):
     """
     Load HTML template from file and return as string
@@ -229,7 +228,8 @@ def load_html_template(template_name):
                 <html><body>
                 <h1>Forecast Map - {STORM}</h1>
                 <p>Team,</p>
-                <p>Please find the attached forecast map for <b>{CLIENT_NAME}</b> for <b>{STORM}</b> based on the Official Forecast made on <b>{TIMESTAMP}</b>.</p>
+                <p>Please find attached the forecast map for <b>{CLIENT_NAME}</b> for <b>{STORM}</b> based on the Official Forecast made on <b>{TIMESTAMP}</b>.</p>
+                <p><a href="cid:storm_map.html">View Forecast Map</a></p>
                 <p>Best regards,<br>Lockton Storm Monitor</p>
                 </body></html>
                 """
@@ -302,7 +302,7 @@ def send_no_impacts_email(recipients, storms):
 
 def send_forecast_map_email(fig, storm, client_name, timestamp_utc, recipients):
     """
-    Send forecast map via email
+    Send forecast map via email with a button to view the HTML attachment
     """
     subject = f'Storm Alert: {storm} - {client_name}'
     
@@ -311,8 +311,8 @@ def send_forecast_map_email(fig, storm, client_name, timestamp_utc, recipients):
     
     # Replace placeholders
     html_body = html_template.replace('{STORM}', storm) \
-                            .replace('{CLIENT_NAME}', client_name) \
-                            .replace('{TIMESTAMP}', timestamp_utc.strftime('%Y-%m-%d %H:%M UTC'))
+                           .replace('{CLIENT_NAME}', client_name) \
+                           .replace('{TIMESTAMP}', timestamp_utc.strftime('%Y-%m-%d %H:%M UTC'))
     
     # Send email with map attachment
     send_map_via_email_oauth(
@@ -376,7 +376,7 @@ def main():
         )
 
         # Define the list of email recipients from environment variables
-        email_recipients = os.getenv('EMAIL_RECIPIENTS', 'edwin.petro@lockton.com')
+        email_recipients = os.getenv('EMAIL_RECIPIENTS', 'edwin.petro@lockton.com,alvaro.farias@lockton.com')
         debug_email_recipients = os.getenv('DEBUG_EMAIL_RECIPIENTS', 'edwin.petro@lockton.com')
         
         # Convert to lists if not empty
@@ -458,6 +458,7 @@ def main():
             except Exception as e:
                 print(f"Error sending errors email: {e}")
                 # Continuar con la ejecución incluso si falla el envío de correo
+            
 
         # Intercept the cones with the buffered AOIs to find potential impacts
         intercepts = gpd.GeoDataFrame()
